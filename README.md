@@ -50,7 +50,13 @@ dominio HTTPS administrado.
 
 Después del primer despliegue:
 
-1. Configure `NODE_ENV=production` en las variables del servicio.
+1. Configure estas variables del servicio:
+   - `NODE_ENV=production`
+   - `NODE_USE_SYSTEM_CA=1`
+   - `NODE_EXTRA_CA_CERTS=/app/certs/sectigo-public-server-auth-ca-dv-r36.pem`
+
+   El certificado adicional completa la cadena TLS que el sitio del BCV no
+   entrega, sin deshabilitar la validación de certificados.
 2. Genere un dominio público y verifique
    `https://<servicio>.up.railway.app/health`.
 3. Consulte dos veces `/tasas/actuales`; la segunda respuesta debe indicar
