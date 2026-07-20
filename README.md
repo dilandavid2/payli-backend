@@ -41,19 +41,22 @@ npm run build
 Los comandos `format` y `lint:fix` aplican correcciones; las variantes usadas en
 CI no modifican archivos.
 
-## Render
+## Railway
 
-El archivo `render.yaml` define un servicio Starter en Virginia, enlazado a
-GitHub, con despliegue después de aprobar CI y health check en `/health`.
-Render asigna `PORT`, termina TLS y publica el servicio mediante HTTPS.
+El archivo `railway.json` configura Railpack, el build reproducible, el comando
+de producción, reinicios ante fallos y el health check en `/health`. Railway
+asigna `PORT`; el servicio ya escucha en `0.0.0.0` y puede publicarse mediante un
+dominio HTTPS administrado.
 
 Después del primer despliegue:
 
-1. Verifique `https://<servicio>.onrender.com/health`.
-2. Consulte dos veces `/tasas/actuales`; la segunda respuesta debe indicar
+1. Configure `NODE_ENV=production` en las variables del servicio.
+2. Genere un dominio público y verifique
+   `https://<servicio>.up.railway.app/health`.
+3. Consulte dos veces `/tasas/actuales`; la segunda respuesta debe indicar
    `desdeCache: true`.
-3. Compile Flutter con:
+4. Compile Flutter con:
 
 ```powershell
-flutter build apk --release --dart-define=API_BASE_URL=https://<servicio>.onrender.com
+flutter build apk --release --dart-define=API_BASE_URL=https://<servicio>.up.railway.app
 ```
