@@ -46,7 +46,7 @@ export interface RespuestaTasas {
 export class TasasService {
   private readonly logger = new Logger(TasasService.name);
 
-  private readonly urlTrm = 'https://www.datos.gov.co/resource/mcec-87by.json';
+  private readonly urlTrm = 'https://www.datos.gov.co/resource/32sa-8pi3.json';
 
   private readonly urlBcv = 'https://www.bcv.org.ve/';
 
@@ -132,6 +132,10 @@ export class TasasService {
     url.searchParams.set('$order', 'vigenciadesde DESC');
 
     const respuesta = await fetch(url, {
+      headers: {
+        'user-agent': 'Mozilla/5.0 (compatible; Payli/1.0)',
+        accept: 'application/json',
+      },
       signal: AbortSignal.timeout(this.timeoutFuentesMs),
     });
 

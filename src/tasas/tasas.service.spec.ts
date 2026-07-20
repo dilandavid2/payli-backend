@@ -48,7 +48,7 @@ describe('TasasService', () => {
   });
 
   it('convierte las tasas y fechas oficiales', async () => {
-    prepararFuentes();
+    const fetchSimulado = prepararFuentes();
     const servicio = new TasasService();
 
     const respuesta = await servicio.obtenerTasasActuales();
@@ -59,6 +59,14 @@ describe('TasasService', () => {
     expect(respuesta.tasas.usdVes.valor).toBe(736.9339);
     expect(respuesta.tasas.eurVes.valor).toBe(850.25);
     expect(respuesta.tasas.usdVes.fechaVigencia).toBe('2026-07-18');
+    const [urlTrm, opcionesTrm] = fetchSimulado.mock.calls[0];
+    expect(urlTrm).toBeInstanceOf(URL);
+    expect((urlTrm as URL).hostname).toBe('www.datos.gov.co');
+    expect((urlTrm as URL).pathname).toBe('/resource/32sa-8pi3.json');
+    expect(opcionesTrm?.headers).toEqual({
+      accept: 'application/json',
+      'user-agent': expect.stringContaining('Payli') as string,
+    });
   });
 
   it('reutiliza la respuesta durante la vigencia de la caché', async () => {
