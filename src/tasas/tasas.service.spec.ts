@@ -15,6 +15,20 @@ const paginaBcvValida = `
   <span class="date-display-single">Viernes 18 de Julio de 2026</span>
 `;
 
+const respuestaSoapTrmValida = `
+  <soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+    <soap:Body>
+      <queryTCRMResponse>
+        <return>
+          <validityFrom>2026-07-18T00:00:00-05:00</validityFrom>
+          <value>3262.58</value>
+          <success>true</success>
+        </return>
+      </queryTCRMResponse>
+    </soap:Body>
+  </soap:Envelope>
+`;
+
 function respuestaJson(datos: unknown, status = 200): Response {
   return new Response(JSON.stringify(datos), {
     status,
@@ -26,6 +40,13 @@ function respuestaHtml(html: string, status = 200): Response {
   return new Response(html, {
     status,
     headers: { 'content-type': 'text/html' },
+  });
+}
+
+function respuestaXml(xml: string, status = 200): Response {
+  return new Response(xml, {
+    status,
+    headers: { 'content-type': 'text/xml' },
   });
 }
 
@@ -81,6 +102,28 @@ describe('TasasService', () => {
     expect(fetchSimulado).toHaveBeenCalledTimes(2);
   });
 
+  it('usa el web service oficial si Datos Abiertos rechaza la consulta', async () => {
+    const fetchSimulado = jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(respuestaJson({}, 403))
+      .mockResolvedValueOnce(respuestaHtml(paginaBcvValida))
+      .mockResolvedValueOnce(respuestaXml(respuestaSoapTrmValida));
+    const servicio = new TasasService();
+
+    const respuesta = await servicio.obtenerTasasActuales();
+
+    expect(respuesta.tasas.usdCop.valor).toBe(3262.58);
+    expect(respuesta.tasas.usdCop.fechaVigencia).toBe('2026-07-18');
+    expect(fetchSimulado).toHaveBeenCalledTimes(3);
+    expect(fetchSimulado.mock.calls[2][0]).toBe(
+      'https://www.superfinanciera.gov.co/SuperfinancieraWebServiceTRM/TCRMServicesWebService/TCRMServicesWebService',
+    );
+    expect(fetchSimulado.mock.calls[2][1]?.method).toBe('POST');
+    expect(advertir).toHaveBeenCalledWith(
+      expect.stringContaining('se usará el web service TRM'),
+    );
+  });
+
   it('devuelve la caché como desactualizada si falla la renovación', async () => {
     let ahora = 1_000;
     jest.spyOn(Date, 'now').mockImplementation(() => ahora);
@@ -100,7 +143,13 @@ describe('TasasService', () => {
   });
 
   it('rechaza una TRM inválida sin caché', async () => {
-    prepararFuentes([{ ...trmValida[0], valor: '-1' }]);
+    jest
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(respuestaJson([{ ...trmValida[0], valor: '-1' }]))
+      .mockResolvedValueOnce(respuestaHtml(paginaBcvValida))
+      .mockResolvedValueOnce(
+        respuestaXml(respuestaSoapTrmValida.replace('3262.58', '-1')),
+      );
     const servicio = new TasasService();
 
     await expect(servicio.obtenerTasasActuales()).rejects.toBeInstanceOf(

@@ -48,6 +48,9 @@ export class TasasService {
 
   private readonly urlTrm = 'https://www.datos.gov.co/resource/32sa-8pi3.json';
 
+  private readonly urlTrmWebService =
+    'https://www.superfinanciera.gov.co/SuperfinancieraWebServiceTRM/TCRMServicesWebService/TCRMServicesWebService';
+
   private readonly urlBcv = 'https://www.bcv.org.ve/';
 
   private respuestaEnCache: RespuestaTasas | null = null;
@@ -126,6 +129,19 @@ export class TasasService {
   }
 
   private async obtenerTrmOficial(): Promise<TrmObtenida> {
+    try {
+      return await this.obtenerTrmDatosAbiertos();
+    } catch (error) {
+      const detalle = error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        `Datos Abiertos no respondió; se usará el web service TRM: ${detalle}`,
+      );
+
+      return this.obtenerTrmWebService();
+    }
+  }
+
+  private async obtenerTrmDatosAbiertos(): Promise<TrmObtenida> {
     const url = new URL(this.urlTrm);
 
     url.searchParams.set('$limit', '1');
@@ -165,6 +181,61 @@ export class TasasService {
       valor,
       fechaVigencia: registros[0].vigenciadesde.substring(0, 10),
     };
+  }
+
+  private async obtenerTrmWebService(): Promise<TrmObtenida> {
+    const fechaConsulta = new Date().toLocaleDateString('en-CA', {
+      timeZone: 'America/Bogota',
+    });
+    const cuerpo = `<?xml version="1.0" encoding="utf-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:act="http://action.trm.services.generic.action.superfinanciera.nexura.sc.com.co/">
+  <soapenv:Header/>
+  <soapenv:Body>
+    <act:queryTCRM>
+      <tcrmQueryAssociatedDate>${fechaConsulta}</tcrmQueryAssociatedDate>
+    </act:queryTCRM>
+  </soapenv:Body>
+</soapenv:Envelope>`;
+
+    const respuesta = await fetch(this.urlTrmWebService, {
+      method: 'POST',
+      headers: {
+        'content-type': 'text/xml; charset=utf-8',
+        accept: 'text/xml',
+        'user-agent': 'Mozilla/5.0 (compatible; Payli/1.0)',
+      },
+      body: cuerpo,
+      signal: AbortSignal.timeout(this.timeoutFuentesMs),
+    });
+
+    if (!respuesta.ok) {
+      throw new ServiceUnavailableException(
+        `No fue posible consultar el web service TRM: ${respuesta.status}`,
+      );
+    }
+
+    const xml = await respuesta.text();
+    const documento = load(xml, { xmlMode: true });
+    const valor = Number(documento('return > value').first().text().trim());
+    const fechaVigencia = documento('return > validityFrom')
+      .first()
+      .text()
+      .trim()
+      .substring(0, 10);
+    const exitosa = documento('return > success').first().text().trim();
+
+    if (
+      exitosa !== 'true' ||
+      !Number.isFinite(valor) ||
+      valor <= 0 ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(fechaVigencia)
+    ) {
+      throw new ServiceUnavailableException(
+        'El web service oficial devolvió una TRM inválida.',
+      );
+    }
+
+    return { valor, fechaVigencia };
   }
 
   private async obtenerTasasBcvOficiales(): Promise<TasasBcvObtenidas> {
