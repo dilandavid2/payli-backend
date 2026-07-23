@@ -1,4 +1,5 @@
 import { Logger, ServiceUnavailableException } from '@nestjs/common';
+import { HistorialTasasRepository } from './historial-tasas.repository';
 import { TasasService } from './tasas.service';
 
 const trmValida = [
@@ -63,6 +64,10 @@ function prepararFuentes(
 describe('TasasService', () => {
   let advertir: jest.SpiedFunction<Logger['warn']>;
 
+  function crearServicio() {
+    return new TasasService(new HistorialTasasRepository());
+  }
+
   beforeEach(() => {
     jest.restoreAllMocks();
     advertir = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
@@ -70,7 +75,7 @@ describe('TasasService', () => {
 
   it('convierte las tasas y fechas oficiales', async () => {
     const fetchSimulado = prepararFuentes();
-    const servicio = new TasasService();
+    const servicio = crearServicio();
 
     const respuesta = await servicio.obtenerTasasActuales();
 
@@ -92,7 +97,7 @@ describe('TasasService', () => {
 
   it('reutiliza la respuesta durante la vigencia de la caché', async () => {
     const fetchSimulado = prepararFuentes();
-    const servicio = new TasasService();
+    const servicio = crearServicio();
 
     await servicio.obtenerTasasActuales();
     const respuesta = await servicio.obtenerTasasActuales();
@@ -108,7 +113,7 @@ describe('TasasService', () => {
       .mockResolvedValueOnce(respuestaJson({}, 403))
       .mockResolvedValueOnce(respuestaHtml(paginaBcvValida))
       .mockResolvedValueOnce(respuestaXml(respuestaSoapTrmValida));
-    const servicio = new TasasService();
+    const servicio = crearServicio();
 
     const respuesta = await servicio.obtenerTasasActuales();
 
@@ -128,7 +133,7 @@ describe('TasasService', () => {
     let ahora = 1_000;
     jest.spyOn(Date, 'now').mockImplementation(() => ahora);
     prepararFuentes();
-    const servicio = new TasasService();
+    const servicio = crearServicio();
     await servicio.obtenerTasasActuales();
 
     ahora += 60 * 60 * 1000 + 1;
@@ -150,7 +155,7 @@ describe('TasasService', () => {
       .mockResolvedValueOnce(
         respuestaXml(respuestaSoapTrmValida.replace('3262.58', '-1')),
       );
-    const servicio = new TasasService();
+    const servicio = crearServicio();
 
     await expect(servicio.obtenerTasasActuales()).rejects.toBeInstanceOf(
       ServiceUnavailableException,
@@ -162,7 +167,7 @@ describe('TasasService', () => {
       trmValida,
       paginaBcvValida.replace('736,93390000', 'sin valor'),
     );
-    const servicio = new TasasService();
+    const servicio = crearServicio();
 
     await expect(servicio.obtenerTasasActuales()).rejects.toBeInstanceOf(
       ServiceUnavailableException,
@@ -174,7 +179,7 @@ describe('TasasService', () => {
       trmValida,
       paginaBcvValida.replace('Viernes 18 de Julio de 2026', 'fecha inválida'),
     );
-    const servicio = new TasasService();
+    const servicio = crearServicio();
 
     await expect(servicio.obtenerTasasActuales()).rejects.toBeInstanceOf(
       ServiceUnavailableException,

@@ -21,6 +21,11 @@ describe('AppController (e2e)', () => {
           desactualizada: false,
           tasas: {},
         }),
+        obtenerHistorial: jest.fn().mockResolvedValue({
+          par: 'USD_COP',
+          periodo: '1M',
+          puntos: [{ fecha: '2026-07-18', valor: 3262.58 }],
+        }),
       })
       .compile();
 
@@ -55,6 +60,17 @@ describe('AppController (e2e)', () => {
         desdeCache: false,
         desactualizada: false,
         tasas: {},
+      });
+  });
+
+  it('/tasas/historial (GET)', () => {
+    return request(app.getHttpServer())
+      .get('/tasas/historial?par=USD_COP&periodo=1M')
+      .expect(200)
+      .expect({
+        par: 'USD_COP',
+        periodo: '1M',
+        puntos: [{ fecha: '2026-07-18', valor: 3262.58 }],
       });
   });
 

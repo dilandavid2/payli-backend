@@ -1,9 +1,17 @@
 import {
+  BadRequestException,
   Injectable,
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { load } from 'cheerio';
+import {
+  HistorialTasasRepository,
+  paresTasa,
+  ParTasa,
+  periodosHistorial,
+  PeriodoHistorial,
+} from './historial-tasas.repository';
 
 interface RegistroTrm {
   valor: string;
@@ -58,6 +66,8 @@ export class TasasService {
   private readonly duracionCacheMs = 60 * 60 * 1000;
   private readonly timeoutFuentesMs = 8_000;
 
+  constructor(private readonly historialTasas: HistorialTasasRepository) {}
+
   async obtenerTasasActuales(): Promise<RespuestaTasas> {
     if (this.respuestaEnCache !== null && Date.now() < this.vencimientoCache) {
       return {
@@ -71,6 +81,12 @@ export class TasasService {
 
       this.respuestaEnCache = respuesta;
       this.vencimientoCache = Date.now() + this.duracionCacheMs;
+      try {
+        await this.historialTasas.guardarTasas(respuesta.tasas);
+      } catch (error) {
+        const detalle = error instanceof Error ? error.message : String(error);
+        this.logger.error(`No fue posible guardar el historial: ${detalle}`);
+      }
 
       return respuesta;
     } catch (error) {
@@ -87,6 +103,41 @@ export class TasasService {
 
       throw error;
     }
+  }
+
+  async obtenerHistorial(par?: string, periodo?: string) {
+    if (!paresTasa.includes(par as ParTasa)) {
+      throw new BadRequestException(
+        `par debe ser uno de: ${paresTasa.join(', ')}`,
+      );
+    }
+
+    const periodoNormalizado = periodo?.toUpperCase() ?? '1M';
+
+    if (!periodosHistorial.includes(periodoNormalizado as PeriodoHistorial)) {
+      throw new BadRequestException(
+        `periodo debe ser uno de: ${periodosHistorial.join(', ')}`,
+      );
+    }
+
+    let puntos = await this.historialTasas.obtener(
+      par as ParTasa,
+      periodoNormalizado as PeriodoHistorial,
+    );
+
+    if (puntos.length === 0) {
+      await this.obtenerTasasActuales();
+      puntos = await this.historialTasas.obtener(
+        par as ParTasa,
+        periodoNormalizado as PeriodoHistorial,
+      );
+    }
+
+    return {
+      par,
+      periodo: periodoNormalizado,
+      puntos,
+    };
   }
 
   private async consultarFuentesOficiales(): Promise<RespuestaTasas> {
