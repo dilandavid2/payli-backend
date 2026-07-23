@@ -69,4 +69,19 @@ describe('HistorialTasasRepository', () => {
       repositorio.obtener('USD_COP', '7D', new Date('2026-07-23T12:00:00Z')),
     ).resolves.toEqual([{ fecha: '2026-07-18', valor: 3262.58 }]);
   });
+
+  it('importa puntos TRM de forma idempotente', async () => {
+    const repositorio = new HistorialTasasRepository();
+
+    await repositorio.guardarPuntosTrm([
+      { fecha: '2026-07-18', valor: 3262.58 },
+      { fecha: '2026-07-19', valor: 3270 },
+    ]);
+    await repositorio.guardarPuntosTrm([{ fecha: '2026-07-19', valor: 3271 }]);
+
+    await expect(repositorio.obtener('USD_COP', 'MAX')).resolves.toEqual([
+      { fecha: '2026-07-18', valor: 3262.58 },
+      { fecha: '2026-07-19', valor: 3271 },
+    ]);
+  });
 });

@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Post, Query } from '@nestjs/common';
 import { TasasService } from './tasas.service';
 
 @Controller('tasas')
@@ -16,5 +16,13 @@ export class TasasController {
     @Query('periodo') periodo?: string,
   ) {
     return this.tasasService.obtenerHistorial(par, periodo);
+  }
+
+  @Post('historial/importar-trm')
+  importarHistorialTrm(
+    @Headers('authorization') autorizacion: string | undefined,
+    @Body() cuerpo: unknown,
+  ) {
+    return this.tasasService.importarHistorialTrm(autorizacion, cuerpo);
   }
 }

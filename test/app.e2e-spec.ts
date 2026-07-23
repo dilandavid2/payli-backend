@@ -26,6 +26,7 @@ describe('AppController (e2e)', () => {
           periodo: '1M',
           puntos: [{ fecha: '2026-07-18', valor: 3262.58 }],
         }),
+        importarHistorialTrm: jest.fn().mockResolvedValue({ importados: 1 }),
       })
       .compile();
 
@@ -72,6 +73,15 @@ describe('AppController (e2e)', () => {
         periodo: '1M',
         puntos: [{ fecha: '2026-07-18', valor: 3262.58 }],
       });
+  });
+
+  it('/tasas/historial/importar-trm (POST)', () => {
+    return request(app.getHttpServer())
+      .post('/tasas/historial/importar-trm')
+      .set('Authorization', 'Bearer temporal')
+      .send([{ fecha: '2026-07-18', valor: 3262.58 }])
+      .expect(201)
+      .expect({ importados: 1 });
   });
 
   afterEach(async () => {

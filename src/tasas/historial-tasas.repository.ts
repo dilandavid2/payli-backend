@@ -109,6 +109,33 @@ export class HistorialTasasRepository implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async guardarPuntosTrm(puntos: PuntoHistorial[]): Promise<void> {
+    for (const punto of puntos) {
+      this.memoria.set(`USD_COP:${punto.fecha}`, punto);
+    }
+
+    if (this.pool === null || puntos.length === 0) {
+      return;
+    }
+
+    const parametros: unknown[] = [];
+    const valores = puntos.map((punto, indice) => {
+      const posicion = indice * 2;
+      parametros.push(punto.fecha, punto.valor);
+      return `('USD_COP', $${posicion + 1}, $${posicion + 2}, 'Superintendencia Financiera de Colombia')`;
+    });
+
+    await this.pool.query(
+      `
+        INSERT INTO historial_tasas (par, fecha, valor, fuente)
+        VALUES ${valores.join(', ')}
+        ON CONFLICT (par, fecha)
+        DO UPDATE SET valor = EXCLUDED.valor, fuente = EXCLUDED.fuente
+      `,
+      parametros,
+    );
+  }
+
   async obtener(
     par: ParTasa,
     periodo: PeriodoHistorial,
