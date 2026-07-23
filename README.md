@@ -66,3 +66,26 @@ Después del primer despliegue:
 ```powershell
 flutter build apk --release --dart-define=API_BASE_URL=https://<servicio>.up.railway.app
 ```
+
+## Historial persistente
+
+Configure `DATABASE_URL` con una base PostgreSQL. Al iniciar, el servicio crea
+la tabla `historial_tasas` y guarda diariamente las referencias oficiales
+USD/COP, USD/VES y EUR/VES.
+
+El histórico completo de la TRM colombiana puede importarse una vez desde un
+equipo con acceso a Datos Abiertos:
+
+```powershell
+$env:DATABASE_PUBLIC_URL='<url pública de PostgreSQL>'
+npm run historial:importar-trm
+```
+
+La ruta usada por Flutter es:
+
+```text
+GET /tasas/historial?par=USD_COP&periodo=1M
+```
+
+Los pares admitidos son `USD_COP`, `USD_VES` y `EUR_VES`; los periodos son
+`7D`, `1M`, `3M`, `1A` y `MAX`.
