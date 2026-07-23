@@ -3,6 +3,7 @@ import {
   Injectable,
   Logger,
   ServiceUnavailableException,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { load } from 'cheerio';
 import {
@@ -138,6 +139,53 @@ export class TasasService {
       periodo: periodoNormalizado,
       puntos,
     };
+  }
+
+  async importarHistorialTrm(
+    autorizacion: string | undefined,
+    cuerpo: unknown,
+  ) {
+    const token = process.env.IMPORT_HISTORY_TOKEN?.trim();
+
+    if (!token) {
+      throw new ServiceUnavailableException(
+        'La importación histórica está deshabilitada.',
+      );
+    }
+
+    if (autorizacion !== `Bearer ${token}`) {
+      throw new UnauthorizedException('Token de importación inválido.');
+    }
+
+    if (!Array.isArray(cuerpo) || cuerpo.length > 1000) {
+      throw new BadRequestException(
+        'El cuerpo debe contener hasta 1000 puntos históricos.',
+      );
+    }
+
+    const puntos = cuerpo.map((punto) => {
+      if (typeof punto !== 'object' || punto === null) {
+        throw new BadRequestException('Punto histórico inválido.');
+      }
+
+      const registro = punto as Record<string, unknown>;
+      const fecha = registro.fecha;
+      const valor = Number(registro.valor);
+
+      if (
+        typeof fecha !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(fecha) ||
+        !Number.isFinite(valor) ||
+        valor <= 0
+      ) {
+        throw new BadRequestException('Punto histórico inválido.');
+      }
+
+      return { fecha, valor };
+    });
+
+    await this.historialTasas.guardarPuntosTrm(puntos);
+    return { importados: puntos.length };
   }
 
   private async consultarFuentesOficiales(): Promise<RespuestaTasas> {

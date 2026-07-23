@@ -1,15 +1,11 @@
-import pg from 'pg';
+const apiBaseUrl = process.env.API_BASE_URL?.replace(/\/$/, '');
+const token = process.env.IMPORT_HISTORY_TOKEN;
 
-const databaseUrl =
-  process.env.DATABASE_PUBLIC_URL ?? process.env.DATABASE_URL;
-
-if (!databaseUrl) {
-  throw new Error('Configure DATABASE_PUBLIC_URL o DATABASE_URL.');
+if (!apiBaseUrl || !token) {
+  throw new Error('Configure API_BASE_URL e IMPORT_HISTORY_TOKEN.');
 }
 
-const url = new URL(
-  'https://www.datos.gov.co/resource/32sa-8pi3.json',
-);
+const url = new URL('https://www.datos.gov.co/resource/32sa-8pi3.json');
 url.searchParams.set('$select', 'valor,vigenciadesde');
 url.searchParams.set('$order', 'vigenciadesde ASC');
 url.searchParams.set('$limit', '50000');
@@ -26,54 +22,42 @@ if (!respuesta.ok) {
 }
 
 const registros = await respuesta.json();
-const pool = new pg.Pool({ connectionString: databaseUrl });
-const cliente = await pool.connect();
+const puntos = registros
+  .map((registro) => ({
+    valor: Number(registro.valor),
+    fecha: String(registro.vigenciadesde ?? '').substring(0, 10),
+  }))
+  .filter(
+    (registro) =>
+      Number.isFinite(registro.valor) &&
+      registro.valor > 0 &&
+      /^\d{4}-\d{2}-\d{2}$/.test(registro.fecha),
+  );
 
-try {
-  await cliente.query(`
-    CREATE TABLE IF NOT EXISTS historial_tasas (
-      par VARCHAR(7) NOT NULL,
-      fecha DATE NOT NULL,
-      valor DOUBLE PRECISION NOT NULL CHECK (valor > 0),
-      fuente TEXT NOT NULL,
-      creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      PRIMARY KEY (par, fecha)
-    )
-  `);
-  await cliente.query('BEGIN');
+console.log(`Fuente oficial descargada: ${puntos.length} registros.`);
 
-  let importados = 0;
+const tamanoLote = 500;
+let importados = 0;
 
-  for (const registro of registros) {
-    const valor = Number(registro.valor);
-    const fecha = String(registro.vigenciadesde ?? '').substring(0, 10);
+for (let inicio = 0; inicio < puntos.length; inicio += tamanoLote) {
+  const lote = puntos.slice(inicio, inicio + tamanoLote);
+  const carga = await fetch(`${apiBaseUrl}/tasas/historial/importar-trm`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(lote),
+  });
 
-    if (
-      !Number.isFinite(valor) ||
-      valor <= 0 ||
-      !/^\d{4}-\d{2}-\d{2}$/.test(fecha)
-    ) {
-      continue;
-    }
-
-    await cliente.query(
-      `
-        INSERT INTO historial_tasas (par, fecha, valor, fuente)
-        VALUES ('USD_COP', $1, $2, 'Superintendencia Financiera de Colombia')
-        ON CONFLICT (par, fecha)
-        DO UPDATE SET valor = EXCLUDED.valor, fuente = EXCLUDED.fuente
-      `,
-      [fecha, valor],
+  if (!carga.ok) {
+    throw new Error(
+      `El backend rechazó el lote ${inicio / tamanoLote + 1}: ${carga.status}.`,
     );
-    importados++;
   }
 
-  await cliente.query('COMMIT');
-  console.log(`TRM histórica importada: ${importados} registros.`);
-} catch (error) {
-  await cliente.query('ROLLBACK');
-  throw error;
-} finally {
-  cliente.release();
-  await pool.end();
+  importados += lote.length;
+  console.log(`Importados ${importados} de ${puntos.length}.`);
 }
+
+console.log(`TRM histórica importada: ${importados} registros.`);

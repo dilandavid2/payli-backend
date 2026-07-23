@@ -1,4 +1,8 @@
-import { Logger, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Logger,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { HistorialTasasRepository } from './historial-tasas.repository';
 import { TasasService } from './tasas.service';
 
@@ -70,6 +74,7 @@ describe('TasasService', () => {
 
   beforeEach(() => {
     jest.restoreAllMocks();
+    delete process.env.IMPORT_HISTORY_TOKEN;
     advertir = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
   });
 
@@ -184,5 +189,23 @@ describe('TasasService', () => {
     await expect(servicio.obtenerTasasActuales()).rejects.toBeInstanceOf(
       ServiceUnavailableException,
     );
+  });
+
+  it('importa historia TRM sólo con el token configurado', async () => {
+    process.env.IMPORT_HISTORY_TOKEN = 'token-de-prueba';
+    const repositorio = new HistorialTasasRepository();
+    const servicio = new TasasService(repositorio);
+
+    await expect(
+      servicio.importarHistorialTrm('Bearer incorrecto', []),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(
+      servicio.importarHistorialTrm('Bearer token-de-prueba', [
+        { fecha: '2026-07-18', valor: 3262.58 },
+      ]),
+    ).resolves.toEqual({ importados: 1 });
+    await expect(repositorio.obtener('USD_COP', 'MAX')).resolves.toEqual([
+      { fecha: '2026-07-18', valor: 3262.58 },
+    ]);
   });
 });

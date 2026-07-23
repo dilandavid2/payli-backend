@@ -74,12 +74,18 @@ la tabla `historial_tasas` y guarda diariamente las referencias oficiales
 USD/COP, USD/VES y EUR/VES.
 
 El histórico completo de la TRM colombiana puede importarse una vez desde un
-equipo con acceso a Datos Abiertos:
+equipo con acceso a Datos Abiertos. Configure temporalmente el mismo
+`IMPORT_HISTORY_TOKEN` en Railway y en la terminal local:
 
 ```powershell
-$env:DATABASE_PUBLIC_URL='<url pública de PostgreSQL>'
+$env:API_BASE_URL='https://<servicio>.up.railway.app'
+$env:IMPORT_HISTORY_TOKEN='<token temporal>'
 npm run historial:importar-trm
 ```
+
+El importador descarga la fuente oficial localmente y envía lotes al backend
+por HTTPS. Elimine `IMPORT_HISTORY_TOKEN` de Railway al terminar para
+deshabilitar la ruta de importación.
 
 La ruta usada por Flutter es:
 
