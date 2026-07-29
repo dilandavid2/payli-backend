@@ -4,6 +4,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 import { TasasService } from './../src/tasas/tasas.service';
+import { BinanceService } from './../src/tasas/binance.service';
 
 describe('AppController (e2e)', () => {
   let app: INestApplication<App>;
@@ -27,6 +28,19 @@ describe('AppController (e2e)', () => {
           puntos: [{ fecha: '2026-07-18', valor: 3262.58 }],
         }),
         importarHistorialTrm: jest.fn().mockResolvedValue({ importados: 1 }),
+      })
+      .overrideProvider(BinanceService)
+      .useValue({
+        obtenerTasas: jest.fn().mockResolvedValue({
+          modo: 'binance',
+          obtenidoEn: '2026-07-29T12:00:00.000Z',
+          desdeCache: false,
+          desactualizada: false,
+          tasas: {
+            usdtCop: { valor: 3187 },
+            usdtVes: { valor: 846 },
+          },
+        }),
       })
       .compile();
 
@@ -61,6 +75,22 @@ describe('AppController (e2e)', () => {
         desdeCache: false,
         desactualizada: false,
         tasas: {},
+      });
+  });
+
+  it('/tasas/binance (GET)', () => {
+    return request(app.getHttpServer())
+      .get('/tasas/binance')
+      .expect(200)
+      .expect({
+        modo: 'binance',
+        obtenidoEn: '2026-07-29T12:00:00.000Z',
+        desdeCache: false,
+        desactualizada: false,
+        tasas: {
+          usdtCop: { valor: 3187 },
+          usdtVes: { valor: 846 },
+        },
       });
   });
 
