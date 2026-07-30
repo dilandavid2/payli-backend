@@ -7,6 +7,7 @@ import {
 interface AnuncioBinance {
   adv?: {
     price?: string;
+    tradableQuantity?: string;
   };
 }
 
@@ -38,8 +39,9 @@ export class BinanceService {
   private readonly logger = new Logger(BinanceService.name);
   private readonly url =
     'https://p2p.binance.com/bapi/c2c/v2/friendly/c2c/adv/search';
-  private readonly duracionCacheMs = 60 * 1000;
+  private readonly duracionCacheMs = 30 * 1000;
   private readonly timeoutMs = 8_000;
+  private readonly liquidezMinimaUsdt = 50;
   private respuestaEnCache: RespuestaTasasBinance | null = null;
   private vencimientoCache = 0;
 
@@ -125,12 +127,22 @@ export class BinanceService {
     }
 
     const cuerpo = (await respuesta.json()) as RespuestaBinanceApi;
-    const primerAnuncio = cuerpo.data?.[0];
-    const valor = Number(primerAnuncio?.adv?.price);
+    const anuncios = cuerpo.data ?? [];
+    const primerAnuncioLiquido = anuncios.find((anuncio) => {
+      const precio = Number(anuncio.adv?.price);
+      const cantidad = Number(anuncio.adv?.tradableQuantity);
+      return (
+        Number.isFinite(precio) &&
+        precio > 0 &&
+        Number.isFinite(cantidad) &&
+        cantidad >= this.liquidezMinimaUsdt
+      );
+    });
+    const valor = Number(primerAnuncioLiquido?.adv?.price);
 
     if (!Number.isFinite(valor) || valor <= 0) {
       throw new ServiceUnavailableException(
-        `Binance P2P no devolvió un anuncio de compra válido para ${fiat}.`,
+        `Binance P2P no devolvió un anuncio de compra con liquidez suficiente para ${fiat}.`,
       );
     }
 

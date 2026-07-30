@@ -1,11 +1,20 @@
 import { Logger, ServiceUnavailableException } from '@nestjs/common';
 import { BinanceService } from './binance.service';
 
-function respuestaBinance(precio: string, status = 200): Response {
-  return new Response(JSON.stringify({ data: [{ adv: { price: precio } }] }), {
-    status,
-    headers: { 'content-type': 'application/json' },
-  });
+function respuestaBinance(
+  precio: string,
+  status = 200,
+  cantidad = '100',
+): Response {
+  return new Response(
+    JSON.stringify({
+      data: [{ adv: { price: precio, tradableQuantity: cantidad } }],
+    }),
+    {
+      status,
+      headers: { 'content-type': 'application/json' },
+    },
+  );
 }
 
 describe('BinanceService', () => {
@@ -17,14 +26,24 @@ describe('BinanceService', () => {
   it('obtiene el primer anuncio orgánico de compra para COP y VES', async () => {
     const fetchSimulado = jest
       .spyOn(global, 'fetch')
-      .mockResolvedValueOnce(respuestaBinance('3187.00'))
-      .mockResolvedValueOnce(respuestaBinance('846.000'));
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: [
+              { adv: { price: '3100.00', tradableQuantity: '0.36' } },
+              { adv: { price: '3187.00', tradableQuantity: '100' } },
+            ],
+          }),
+          { headers: { 'content-type': 'application/json' } },
+        ),
+      )
+      .mockResolvedValueOnce(respuestaBinance('848.900'));
     const servicio = new BinanceService();
 
     const respuesta = await servicio.obtenerTasas();
 
     expect(respuesta.tasas.usdtCop.valor).toBe(3187);
-    expect(respuesta.tasas.usdtVes.valor).toBe(846);
+    expect(respuesta.tasas.usdtVes.valor).toBe(848.9);
     expect(respuesta.desdeCache).toBe(false);
     expect(fetchSimulado).toHaveBeenCalledTimes(2);
     expect(JSON.parse(fetchSimulado.mock.calls[0][1]?.body as string)).toEqual(
@@ -61,7 +80,7 @@ describe('BinanceService', () => {
     const servicio = new BinanceService();
     await servicio.obtenerTasas();
 
-    ahora += 60_001;
+    ahora += 30_001;
     jest.spyOn(global, 'fetch').mockRejectedValue(new Error('sin conexión'));
     const respuesta = await servicio.obtenerTasas();
 
